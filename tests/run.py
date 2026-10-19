@@ -84,7 +84,9 @@ def launch(st, caller_model=None, timeout=1200):
     h = HARNESSES[st["caller"]]
     out = state_path(st["id"]).parent
     with open(out / "caller.out", "wb") as o, open(out / "caller.err", "wb") as e:
+        # OpenCode takes its project directory from PWD, so set it along with cwd
         p = subprocess.Popen(h.caller_cmd(st["prompt"], caller_model or h.model), cwd=st["work"],
+                             env={**os.environ, "PWD": st["work"]},
                              stdin=subprocess.DEVNULL, stdout=o, stderr=e, start_new_session=True)
         try:
             rc = p.wait(timeout)

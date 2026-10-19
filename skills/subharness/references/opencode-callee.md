@@ -32,6 +32,11 @@ Redirect stdin from `/dev/null` when launching `run` from a process tool. A loca
 run with an inherited open pipe on stdin produced no output until killed; the
 same command with closed stdin finished in seconds.
 
+OpenCode takes its project directory from the `PWD` variable. A launcher that
+changes the working directory without updating `PWD`, such as a `subprocess`
+call with `cwd=`, runs it in the parent's directory; use `cd DIR && opencode
+...` or set `PWD=DIR`.
+
 ## Watch progress
 
 Each NDJSON line has `type`, `timestamp`, `sessionID`, and `part`. Save
