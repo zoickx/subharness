@@ -1,34 +1,40 @@
 # Call from OpenCode
 
-The built-in `bash` tool can run an external harness directly. Its current
-implementation is a bounded command with captured stdout/stderr and ignored
-stdin, not a persistent interactive process handle. Its default timeout is two
-minutes, with a ten-minute maximum. It returns output after completion/timeout;
-an external CLI streaming to stdout does not itself give the model live updates.
+The built-in `shell` tool runs an external harness directly. A foreground call
+returns captured output after completion or timeout. The default timeout is two
+minutes; set `timeout` in milliseconds (`0` disables it) and `workdir` instead
+of `cd`. Large output is cut to a bounded tail, with the complete output kept in
+a managed file whose path is returned. A streaming CLI does not give the model
+live updates while the foreground call is still running.
 
-For long runs, ordinary process control remains available: launch a process with
-output redirected to a file, retain its PID or process-group ID, then use later
-`bash` calls to read new output or send a signal. Manage the lifetime explicitly;
-a shell `&` is not an OpenCode-managed job with a completion notification. A
-temporary pipe-owning helper or available `tmux` can supply an input channel
-when needed. No maintained helper or plugin is required by this skill.
+`background: true` returns immediately with a shell ID and an output file path,
+has no timeout by default, and OpenCode notifies the session when the command
+finishes. Do not poll for completion; read a bounded slice of that output file
+in a later call if progress matters before the end. The tool has no documented
+stdin channel to a running command, so the handle is for observation and
+lifetime, not for typing into a TUI.
 
-For structured interaction, the callee's own server/session API can be simpler
-than terminal control: start it once, then make bounded requests with `bash`.
-OpenCode's integrated terminal and server PTY API are separate features; do not
-assume either is exposed as a native agent tool.
+For a shell `&` process, retain the PID or process-group ID yourself and use
+later `shell` calls to read new output or send a signal. A temporary pipe-owning
+helper or an available `tmux` can supply an input channel. For structured
+interaction, the callee's own server/session API is usually simpler than
+terminal control: start it once, then make bounded requests from `shell`.
+OpenCode's PTY API serves its own clients and is not a model-facing tool.
 
-The native `task` tool launches OpenCode subagents. It can isolate harness
-research or debugging when available, but a task ID is not a child shell PID.
-Do not assume that a task continuation injects stdin into an active external
-agent. Experimental background-subagent features are unnecessary for the basic
-shell path; use only capabilities already exposed in the current session.
+The native `subagent` tool starts a child session with a configured subagent
+and returns a `sessionID`; pass it back to continue that child. Foreground calls
+wait for the result. `background: true` returns immediately and the parent is
+notified when the child finishes, which is a workable channel for a watcher that
+reports selected events. A child session is not a shell process handle, and
+continuing it does not inject stdin into an external agent. Nesting depth
+defaults to one.
 
-TUI notification sounds and plugin events do not create a portable child-to-parent
-messaging channel. For selected updates, use a watcher with native messaging if
-available, or a small status file read between calls.
+TUI notification sounds and plugin events do not create a portable
+child-to-parent messaging channel. For targeted updates, use a background
+subagent, or a small status file read between calls.
 
-- [V2 tools](https://dev.opencode.ai/v2/docs/tools/)
-- [Current bash implementation](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/tool/bash.ts)
+- [V2 tools: shell and subagent](https://dev.opencode.ai/v2/docs/tools/)
+- [Shell tool source](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/tool/plugin/shell.ts)
+- [Subagent tool source](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/tool/plugin/subagent.ts)
 - [V2 agents](https://dev.opencode.ai/v2/docs/agents/)
 - [V2 commands](https://dev.opencode.ai/v2/docs/cli/commands/)
