@@ -190,7 +190,9 @@ def agy_sessions(cwd_dir, since):
             con.close()
         except sqlite3.Error:
             continue
-        if not rows or rows[0][1] != 14 or (pb_get(rows[0][4], 19, 12, 12) or b"").decode() != want:
+        # the cwd is on user steps, but not always on the first one
+        uris = [pb_get(pl, 19, 12, 12) for _, typ, _, _, pl in rows if typ == 14]
+        if not rows or rows[0][1] != 14 or want not in [u.decode() for u in uris if u]:
             continue
 
         def ts(md):

@@ -154,14 +154,14 @@ def main():
         q.add_argument("--callee-model")
         if name != "prepare":
             q.add_argument("--caller-model")
-            q.add_argument("--timeout", type=int, default=1200)
+            q.add_argument("--timeout", type=int, default=1500)
             q.add_argument("--keep", action="store_true", help="keep work dirs after the check")
     for name in ("launch", "check", "clean"):
         q = sub.add_parser(name)
         q.add_argument("run_id")
         if name == "launch":
             q.add_argument("--caller-model")
-            q.add_argument("--timeout", type=int, default=1200)
+            q.add_argument("--timeout", type=int, default=1500)
     sub.add_parser("grid").add_argument("--scenario", nargs="+", choices=list(SCENARIOS))
     a = ap.parse_args()
 

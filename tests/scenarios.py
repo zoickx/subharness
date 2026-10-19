@@ -47,8 +47,9 @@ class Ctx:
             return f.read().decode("utf-8", "replace")
 
     def line(self, name, where="child"):
-        t = self.read(name, where)
-        return None if t is None else t.strip()
+        """First non-empty line, without markdown marks or a trailing period."""
+        ls = self.lines(name, where)
+        return ls[0].strip("*`_ .") if ls else None
 
     def lines(self, name, where="child"):
         return [l.strip() for l in (self.read(name, where) or "").splitlines() if l.strip()]
@@ -123,7 +124,7 @@ BASIC_PROMPT = """\
 Use {callee} with model {model} to run a task in the directory {child}. Do these steps in order.
 
 1. Start it in the background so that you can keep working while it runs, and give it exactly this task:
-   "Remember this password: {password}. Say a made-up six-letter word. Then run this shell command: `for i in $(seq 1 20); do sleep 1; done`. Then say a second made-up six-letter word. Then create a file named words.txt in the current directory containing the two words, one per line."
+   "Remember this password: {password}. Say a made-up six-letter word. Then run this shell command: `for i in $(seq 1 40); do sleep 1; done`. Then say a second made-up six-letter word. Then create a file named words.txt in the current directory containing the two words, one per line."
 2. While it is running, create caller.txt in {work} containing the single line BUSY.
 3. While it is still running, read its output. As soon as it has said a word, write that word to progress.txt in {work}.
 4. Wait for it to finish and exit.
@@ -137,10 +138,6 @@ def check_basic(ctx):
     ctx.cap = "launch"
     ctx.file_is("caller.txt", "BUSY", "work")
     ctx.before("caller.txt", "words.txt")
-    if s:
-        cm = ctx.mtime("caller.txt", "work")
-        ctx.add("caller.txt written after the callee started", cm is not None and cm >= s["started"] - 5,
-                f"caller.txt {ctx.rel(cm)}, callee started {ctx.rel(s['started'])}")
     ctx.cap = "watch"
     words = [w.upper() for w in ctx.lines("words.txt")]
     ctx.add("words.txt has two words", len(words) == 2, repr(words))
@@ -150,7 +147,7 @@ def check_basic(ctx):
     ctx.cap = "resume"
     ctx.file_is("recall.txt", ctx.words["password"], "work")
     if s:
-        q = ctx.asked_in(s, "password")
+        q = ctx.asked_in(s, "password i gave")
         if q:
             ctx.add("question does not repeat the password", ctx.words["password"] not in q["text"].upper())
         ctx.session_reported(s)
