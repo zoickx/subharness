@@ -46,8 +46,10 @@ Skip reasoning and full command output unless needed for diagnosis.
 `exec --json` is useful for activity and completed messages; use App Server for
 documented text deltas and explicit live control. Failure is an `error` event
 plus `turn.failed` with `error.message`, and exit 1. A usage limit fails this
-way within seconds. `-o FILE` is written only on success; after a failed turn
-an existing file keeps its old content, so check exit status and turn state.
+way within seconds. `-o FILE` receives the final `agent_message` text on
+success; after a failed turn an existing file keeps its old content, so check
+exit status and turn state. A command item emits only `item.started` and
+`item.completed` (with `exit_code`), so a long command shows no progress.
 
 ## Continue or attach
 
@@ -70,9 +72,10 @@ once with `Queued message ID for thread ID.` The message is stored in the
 thread's queue. It is not delivered to an idle thread: it starts as a new turn
 after the next turn on that thread completes in a server that has the thread
 loaded. App Server `thread/queue/list|start|delete` (experimental) inspect,
-start, or remove it. Queue during an active `exec` turn is untested. `codex
-agents` browses shared-server sessions. A standalone `exec` process is not a
-listener for further stdin messages.
+start, or remove it. Queued during an active `exec` turn, it started a second
+turn that `exec` interrupted on exit (exit 0), consuming the message with no
+reply or event; use `exec resume` instead. `codex agents` browses shared-server
+sessions.
 
 ## Live steering through App Server
 
@@ -117,37 +120,48 @@ Send additional input into the active turn:
 ```
 
 The result `{"turnId":...}` confirms admission, not completion of the
-correction. With no active turn the error is `-32600` `no active turn to steer`;
-start a new turn instead. To interrupt:
+correction. During a model-issued `sleep`, the steer appeared at once as a
+`userMessage` item and the final reply honored it. With no active turn the
+error is `-32600` `no active turn to steer`; start a new turn instead. To
+interrupt:
 
 ```jsonl
 {"id":5,"method":"turn/interrupt","params":{"threadId":"THREAD_ID","turnId":"TURN_ID"}}
 ```
 
-The result is `{}`, then `turn/completed` with `interrupted`. The running
-command item may get no `item/completed`. In a test with `thread/shellCommand`,
-the command's child process kept running after the interrupt, reparented to
-init; check for and kill leftovers you own. The server remains usable for a new
-`turn/start`. After restarting the server, initialize again and call
+The result is `{}`, then `turn/completed` with `interrupted` at once. The
+running command gets no `item/completed` and keeps running: a model-issued
+command stays a thread background terminal (experimental
+`thread/backgroundTerminals/list|terminate`) and ends when the server exits. A
+`thread/shellCommand` child was instead reparented to init and outlived the
+server. Check for and kill leftovers you own. The server remains usable for a
+new `turn/start`. After restarting the server, initialize again and call
 `thread/resume` with `{"threadId":"THREAD_ID"}`, then start another turn.
 `thread/read` inspects saved metadata without dumping the full history.
 
 Server-initiated requests have their own `id` and need a reply. Ignoring
 `item/commandExecution/requestApproval`, file approval, or user-input requests
-stalls the turn. Per docs and schema (not live-tested), answer a command
-approval with `{"id":REQUEST_ID,"result":{"decision":"accept"}}`; other
-decisions are `acceptForSession`, `decline` (turn continues), and `cancel`
-(turn is interrupted). Then `serverRequest/resolved` and `item/completed`
-(`declined` when refused) follow. Select a nonprompting policy for a task that
-can run under it. A blanket approval is not a hang diagnostic.
+stalls the turn. A command approval arrives after `item/started` for the
+`commandExecution` item:
+
+```jsonl
+{"method":"item/commandExecution/requestApproval","id":0,"params":{"kind":"command","threadId":"...","turnId":"...","itemId":"...","reason":"...","command":"/usr/bin/zsh -lc 'echo ok > f.txt'","cwd":"...","availableDecisions":["accept",{"acceptWithExecpolicyAmendment":{"execpolicy_amendment":["..."]}},"cancel"]}}
+{"id":0,"result":{"decision":"accept"}}
+```
+
+Then `serverRequest/resolved` and `item/completed` follow: `completed` after
+`accept`; `declined` after `decline` (accepted though unlisted), and the turn
+continues. `cancel` also interrupts the turn. Under `on-request` with a
+read-only sandbox, the model sometimes claimed a denial without trying;
+`untrusted` prompted reliably. A blanket approval is not a hang diagnostic.
 
 ## Pitfalls and deeper reference
 
 - A parent sandbox can prevent a nested sandbox from starting. Read stderr;
   sandbox failure is different from authentication failure or model inactivity.
 - Hooks and required MCP startup can delay or fail a run before model output.
-- `thread/shellCommand` runs a command in the thread without the model, outside
-  the sandbox. It is a user action, not an agent tool.
+- `thread/shellCommand` runs a user command in the thread, without the model
+  and outside the sandbox.
 - TUI `--no-alt-screen` preserves scrollback, but screen updates are still not a
   structured event protocol. Ctrl-C in a PTY differs from a control byte in a pipe.
 - `--full-auto` is removed. Use the explicit sandbox/approval options above.

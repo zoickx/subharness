@@ -4,12 +4,12 @@ Use the shell/process tool exposed in your current Codex session. Tool names
 and persistence differ across CLI and hosted surfaces; the loaded schema is the
 contract.
 
-When code mode is active, the top-level tool is `exec`: it runs a
-JavaScript cell that calls nested tools such as `tools.exec_command` and
-`tools.write_stdin`. A cell that outlives its yield returns `Script running with
-cell ID N`; poll it with the top-level `wait` tool (`cell_id`, `yield_time_ms`,
-`max_tokens`). This comes from recorded IDE sessions; a live CLI `exec` caller
-run is untested.
+In `codex exec` and IDE sessions with code mode, the top-level tool is `exec`:
+it runs a JavaScript cell that calls nested tools such as `tools.exec_command`
+and `tools.write_stdin`; self-reports often name only the nested tools. A
+cell that outlives its yield returns `Script running with cell ID N`; poll it
+with the top-level `wait` tool (`cell_id`, `yield_time_ms`, `max_tokens`).
+Short cells that yield a process `session_id` avoid this.
 
 Where `exec_command` and `write_stdin` are available, directly or inside a cell:
 
@@ -18,8 +18,10 @@ Where `exec_command` and `write_stdin` are available, directly or inside a cell:
   process continues. Yielding is not an execution timeout. The `session_id`
   stays valid in later cells.
 - Poll that same ID with `write_stdin` and empty `chars`, using a bounded
-  `max_output_tokens`. Send text with `chars` only when the tool supports
-  writable stdin for that session.
+  `max_output_tokens`. An empty poll waited about 5 s even with a 1000 ms
+  yield. Send text with `chars` only when the tool supports writable stdin for
+  that session. The caller's `--json` stream shows the whole process as one
+  `command_execution` item, not each poll.
 - `tty: true` requests terminal behavior for a TUI. Some hosts require it to keep
   stdin writable. PTY echo and control sequences can contaminate a JSON stream;
   use a pipe-owning temporary process when clean bidirectional JSON is needed.
@@ -27,6 +29,11 @@ Where `exec_command` and `write_stdin` are available, directly or inside a cell:
   pipe it is just input. Prefer the child's documented interrupt protocol, or a
   signal to the specific process you launched. Killing only a shell wrapper can
   leave its children running; signal the process group.
+
+Under `-s workspace-write` or `read-only`, network is off by default. A child
+harness then cannot reach its API: a `claude -p` child retried for about two
+minutes and exited 1 with `EAI_AGAIN`. Give such children network access
+deliberately or run them outside the sandbox.
 
 If the host exposes only a blocking shell command, output files and separately
 addressable processes provide observation between calls. A bare shell `&` does
