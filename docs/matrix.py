@@ -41,10 +41,10 @@ CALLEE = {
     "agy": {
         "channel": "none",
         "Watch": (OK, "stream-json text deltas"),
-        "Steer": (NO, "headless stdin only queues the next turn"),
-        "Interrupt": (WARN, "kill or --print-timeout only; the result still says SUCCESS, exit 0"),
+        "Steer": (WARN, "TUI only, through a PTY: alt+m injects at the next step boundary; headless stdin only queues"),
+        "Interrupt": (WARN, "headless: kill or --print-timeout, result still SUCCESS; TUI through a PTY: Esc or Ctrl-C"),
         "Resume": (OK, "--conversation ID; an unknown ID silently starts a new one"),
-        "Permissions": (NO, "headless auto-denies; TUI or remote control only"),
+        "Permissions": (WARN, "TUI only, through a PTY: a digit or Enter answers the prompt; headless auto-denies"),
     },
 }
 

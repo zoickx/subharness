@@ -14,7 +14,7 @@ model. No installs, config edits, or persistent processes were left behind.
 | --- | --- | --- | --- | --- |
 | Claude Code | 2.1.302 (2.1.303 installed on 10-19, not retested) | `haiku` alias | `stream-json` live text deltas; `control_request` initialize and interrupt acknowledged; follow-up turn in the same process recalled a marker; `--resume` in a new process recalled it | `--bg`/`logs`/`attach`; `--permission-prompts host` control requests; nested `CLAUDECODE` guard |
 | Codex CLI | codex-cli 0.163.0 | `gpt-6-luna` | `exec --json` events and `exec resume`; App Server `thread/start`, `turn/start`, text deltas; `turn/steer` admitted during an in-progress shell item and the turn completed; `turn/interrupt` ended the turn as `interrupted`; `thread/resume` after restart | Approval requests (`approvalPolicy: never`); `codex queue`; `exec fork` |
-| Antigravity CLI | agy 1.4.2 | `gemini-3.8-flash-low` | One-shot `stream-json` with `init`/`step_update`/`result`; warm stdin multi-turn in one process; `--conversation` resume | TUI interrupt; remote control; caller-side `run_command` succeeded only as far as a headless denial |
+| Antigravity CLI | agy 1.4.2 | `gemini-3.8-flash-low` | One-shot `stream-json` with `init`/`step_update`/`result`; warm stdin multi-turn in one process; `--conversation` resume | TUI interrupt (done in the fourth pass); remote control; caller-side `run_command` succeeded only as far as a headless denial |
 | OpenCode | opencode v2.0.32 | `opencode/nemotron-3.5-super-vl-free`, `opencode-go/gpt-6-luna` | `serve` with `OPENCODE_PASSWORD` and Basic auth; `run --format json`; `--session` resume; `/api/event` SSE; `prompt` with `delivery: steer` during a shell call was delivered after the call and honored; `interrupt` during a shell call returned `interrupted: true` and the run exited 1; `run --session` continued the interrupted session | Permission/form reply routes; `queue` delivery; durable log replay; `--standalone`; background service; `opencode api` auth |
 
 Findings that changed the references:
@@ -90,5 +90,35 @@ caller's shell tool, so the references could drop the "small helper" wording.
   `stop_hook_prevented`. The reference no longer promises specific fields.
 
 Untested: the FIFO from OpenCode's `shell` and agy's `run_command`; large
-payloads through `tmux load-buffer`/`paste-buffer`; TUI control through `tmux`
-(agy's trust menu still blocks temp directories).
+payloads through `tmux load-buffer`/`paste-buffer`.
+
+## Fourth pass: agy TUI through tmux (2026-10-19)
+
+With the user's approval, `/tmp/subharness-trusted` was added to agy's
+`trustedWorkspaces` for the duration of the checks and removed afterwards; the
+settings file was restored from a backup. The TUI (agy 1.4.2,
+`gemini-3.8-flash-low`) ran in a `tmux` 3.7c pane on a private socket, driven
+only by `send-keys` and read with `capture-pane`.
+
+- Interrupt: `Escape` or `C-c` during a turn stopped the stream within a
+  second and printed `Interrupted`; the next turn worked. At an idle prompt,
+  `C-c` twice exits the TUI, and neither key cleared a draft (`C-u` does).
+- Permissions: `Run this command?` with four options. Digit `1` or `Enter`
+  allowed and the file was created; digit `4`, `Escape`, or `Down` three
+  times plus `Enter` denied, the file was absent, and the turn ended
+  `Interrupted`. File-viewing tools did not prompt.
+- Typing mid-turn: `Enter` queues the message for the next turn; `M-m`
+  injected it at the next step boundary (after a tool step it redirected the
+  turn; during one long text stream it waited for the stream to end). A long
+  shell command moved itself to a background task and the turn ended.
+- Reading: no alternate screen; `capture-pane -p -S -N` returned each line
+  once with tool output collapsed; `pipe-pane` produced redraw frames in which
+  the 400 count lines appeared over 5000 times.
+- Quit: `/quit` plus `Enter`, or `C-d` twice; exit 0. The conversation ID was
+  printed only on exit; `--conversation=UUID` reopened the transcript with
+  prior context.
+- Dismissing the first-start overlay wrote a UI cache file
+  (`cache/nux_state.json`), not settings.
+
+Untested: permission options 2 and 3, which persist permissions; `M-m` into a
+single long tool call; `ctrl+b`, `/tasks`, `ctrl+o`; the trust menu itself.
