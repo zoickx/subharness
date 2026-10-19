@@ -90,6 +90,13 @@ Keep stdin open; parse stdout as JSON and stderr as diagnostics. Send each
 request on its own line, match responses by `id`, and handle interleaved events.
 Do not include a JSON-RPC `jsonrpc` version field.
 
+From a shell tool that cannot hold a pipe across calls, run the server behind
+a FIFO held open (`mkfifo in; exec 3<>in; codex app-server --listen stdio://
+<&3 > out.jsonl` as one background command, then `printf '%s\n' 'JSON' > in`
+from later calls). The server also accepts a terminal stdin, so a `tmux` pane
+with `stty raw -echo icrnl` set first works directly; without raw mode the
+terminal echoes input into the log and truncates lines at 4095 bytes.
+
 ```jsonl
 {"id":1,"method":"initialize","params":{"clientInfo":{"name":"harness_use","title":"Harness use","version":"1"}}}
 {"method":"initialized","params":{}}

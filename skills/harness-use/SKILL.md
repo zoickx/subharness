@@ -37,8 +37,10 @@ is missing or fails; routine version matching is unnecessary.
   subagent is useful when interpreting events would otherwise consume the main
   agent's attention; it is not required for every launch.
 - Live output, queued follow-up, active-turn steering, and interruption are
-  distinct capabilities. Select the interface that provides what you need.
-  Streaming output alone does not imply writable stdin or live steering.
+  distinct capabilities. Launch flags, an output file, and session resume
+  cover most needs with no extra tooling. Mid-turn control needs the child's
+  stdin or HTTP kept reachable; each callee reference gives one verified
+  recipe. Streaming output alone does not imply writable stdin or steering.
 - Machine streams work best through pipes. A TUI needs a PTY. Keep stdin open
   for a multi-turn protocol; closing it may end the session. A tool yielding
   control is different from its execution timeout killing the command.

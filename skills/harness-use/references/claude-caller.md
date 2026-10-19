@@ -17,10 +17,13 @@ meaningful status changes, including failure signatures.
 
 Do not assume a Bash task handle is a writable PTY. `claude --bg --exec
 'COMMAND'` runs a PTY-backed shell job managed by `claude logs`, `attach`, and
-`stop`; `attach` itself needs a terminal. For bidirectional machine protocols,
-an ordinary process with pipes or a small temporary bridge is often simpler.
-For terminal interaction, a caller-controlled PTY (for example Python `pty`)
-or an available `tmux` session supplies an input path; `logs` alone does not.
+`stop`; `attach` itself needs a terminal. For a stdin protocol, start the child
+as a background task reading a FIFO held open (recipe in the callee reference)
+and write lines to the FIFO from later `Bash` calls; verified with Claude Code
+as the child for permission replies, interrupt, and a follow-up. For terminal
+interaction, a TUI or a handover to a human, a `tmux` session on a private
+socket (`tmux -L NAME`) supplies the PTY: `send-keys -l` writes, `pipe-pane`
+logs, `kill-session` ends it; `logs` alone does not provide input.
 
 A native subagent can own a noisy harness investigation and return only the
 result. If it owns a long-running command, keep its lifecycle in mind:

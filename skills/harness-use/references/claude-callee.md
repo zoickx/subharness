@@ -67,6 +67,24 @@ The CLI speaks the Agent SDK's JSONL protocol without requiring an SDK install:
 claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages
 ```
 
+Stdin must be a pipe. A terminal stdin fails at once with `Input must be
+provided either through stdin or as a prompt argument when using --print`,
+and adding a prompt argument runs one turn without reading stdin. From a shell
+tool that cannot hold a pipe across calls, run the process behind a FIFO:
+
+```sh
+mkfifo in
+exec 3<>in; claude -p --input-format stream-json --output-format stream-json --verbose <&3 > out.jsonl
+printf '%s\n' 'JSON_LINE' > in
+```
+
+The second line is one background command; the `3<>` holder keeps the FIFO
+open, otherwise the first writer's close is EOF and the process exits after
+the turn. Later shell calls append lines with the `printf`. In a `tmux` pane,
+run `stty raw -echo icrnl` first and launch `cat | claude ...` so stdin is a
+pipe; `send-keys -l` writes and `pipe-pane` logs clean JSONL. Without raw mode
+the terminal echoes input into the log and truncates lines at 4095 bytes.
+
 Keep stdin open and flush each line. Initialize, wait for the matching
 `control_response`, then send a user message:
 
@@ -87,9 +105,11 @@ active turn, then send the correction in the same process:
 ```
 
 Match the response by `response.request_id` (payload `{"still_queued":[]}`).
-The interrupted turn ends with `result` `subtype: error_during_execution`,
-`is_error: true`, `terminal_reason: aborted_streaming`; wait for it before the
-next turn. The process stays usable. Close stdin to end it (exit 0).
+The interrupted turn ends with a `result`; wait for it before the next turn.
+Its `subtype` and `terminal_reason` varied across runs (`error_during_execution`
+with `aborted_streaming`, `success` with `aborted_streaming` or
+`stop_hook_prevented`), so key on the acknowledgement and the next `result`.
+The process stays usable. Close stdin to end it (exit 0).
 
 ## Permission prompts
 

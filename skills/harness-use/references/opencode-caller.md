@@ -23,11 +23,13 @@ events. A model may also claim a notification before one arrives; only the
 later synthetic turn carries the result.
 
 For a shell `&` process, retain the PID or process-group ID yourself and use
-later `shell` calls to read new output or send a signal. A temporary pipe-owning
-helper or an available `tmux` can supply an input channel. For structured
-interaction, the callee's own server/session API is usually simpler than
-terminal control: start it once, then make bounded requests from `shell`.
-OpenCode's PTY API serves its own clients and is not a model-facing tool.
+later `shell` calls to read new output or send a signal. A FIFO held open by
+the background command supplies an input channel (recipe in the Claude Code
+and Codex callee references; untested from `shell`), and `tmux` supplies a PTY
+when a terminal is needed. For structured interaction, the callee's own
+server/session API is usually simpler than terminal control: start it once,
+then make bounded requests from `shell`. OpenCode's PTY API serves its own
+clients and is not a model-facing tool.
 
 The native `subagent` tool starts a child session with a configured subagent
 and returns a `sessionID`; pass it back to continue that child. Foreground calls
