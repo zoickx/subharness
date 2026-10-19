@@ -5,19 +5,20 @@
 Run in the desired working directory; Claude inherits cwd.
 
 ```sh
-claude -p --output-format stream-json --verbose --include-partial-messages 'TASK'
+claude -p --output-format stream-json --verbose --include-partial-messages 'TASK' < /dev/null
 ```
 
 This emits JSONL on stdout, with diagnostics on stderr. Plain `-p` returns text;
 `--output-format json` returns a completion envelope. A pipe can supply a prompt:
-`claude -p < prompt.txt`.
+`claude -p < prompt.txt`. `-p` skips the workspace trust dialog; interactive and
+`--bg` sessions require the directory to be trusted already.
 
 | Need | Options |
 | --- | --- |
 | Model / reasoning | `--model ALIAS_OR_ID`, `--effort LEVEL`; `haiku` is the small-model alias |
 | Agent / instructions | `--agent NAME`, `--agents JSON_OR_FILE`, `--append-system-prompt TEXT`, `--system-prompt TEXT` (replaces default) |
 | Tool access | `--tools LIST` selects tools; `--allowedTools LIST` grants permission; `--disallowedTools LIST` denies |
-| Permissions | `--permission-mode MODE`; `--permission-prompts none` denies requests that would otherwise prompt in print mode |
+| Permissions | `--permission-mode MODE`; `--permission-prompts host\|none` (see below) |
 | Broad permissions | `--dangerously-skip-permissions` bypasses permission checks |
 | Scope / config | `--add-dir DIR`, `--settings FILE_OR_JSON`, `--setting-sources user,project,local`, `--mcp-config FILE`, `--strict-mcp-config` |
 | Isolated checkout | `--worktree NAME` |
@@ -27,6 +28,10 @@ This emits JSONL on stdout, with diagnostics on stderr. Plain `-p` returns text;
 `dontAsk` denies unapproved tools; `acceptEdits` accepts edits; `plan` restricts
 execution. Pick permissions for the intended task. `--tools` availability and
 tool approval are separate controls.
+
+List options (`--tools`, `--allowedTools`, `--disallowedTools`, `--add-dir`,
+`--mcp-config`) are variadic and swallow a following prompt (`-p` errors, `--bg`
+starts idle). Put the prompt before them.
 
 `--bare` changes context AND authentication: local help says it skips normal
 customizations and OAuth/keychain reads. It is not a neutral speed flag.
@@ -40,8 +45,9 @@ useful when isolating a configuration failure.
   `event.delta.type == "text_delta"`, using `event.delta.text`, for streamed text.
 - Assistant `tool_use` blocks identify activity. Summarize names rather than
   dumping arguments/results. Do not forward thinking blocks.
-- `result` ends a turn. Inspect `subtype`, `is_error`, and `result`; save
-  `session_id`. A turn ending need not mean background work has exited.
+- `result` ends a turn. Inspect `subtype`, `is_error`, `terminal_reason`,
+  `permission_denials`, and `result`; save `session_id`. A turn ending need not
+  mean background work has exited.
 
 For text alone, filter the stream with this expression (if `jq` is available):
 
@@ -69,39 +75,55 @@ Keep stdin open and flush each line. Initialize, wait for the matching
 {"type":"user","message":{"role":"user","content":"TASK"},"parent_tool_use_id":null,"session_id":"default"}
 ```
 
-`session_id: "default"` is the SDK's input label; save the real emitted session
-ID for later CLI resume. Subsequent user lines submit further input. Do not
-assume they cancel an active tool/model call. For an immediate change of course,
-interrupt the active turn, then send the correction in the same process:
+The initialize response is large; read only needed fields. `system`/`init`
+arrives after each user message, not after initialize. `session_id: "default"`
+is the SDK's input label; save the real emitted session ID for later CLI
+resume. Subsequent user lines submit further turns. Do not assume they cancel
+an active tool/model call. For an immediate change of course, interrupt the
+active turn, then send the correction in the same process:
 
 ```jsonl
 {"type":"control_request","request_id":"stop-1","request":{"subtype":"interrupt"}}
 ```
 
-Match the response by `response.request_id`, and observe the interrupted turn's
-`result` before sending the next turn. Responses and events can interleave.
-With `--permission-prompts host`, the host must also handle permission control
-requests; ignoring them can stall work. `--permission-prompts none` provides a
-noninteractive denial path. Close stdin when finished and collect the exit code.
+Match the response by `response.request_id` (payload `{"still_queued":[]}`).
+The interrupted turn ends with `result` `subtype: error_during_execution`,
+`is_error: true`, `terminal_reason: aborted_streaming`; wait for it before the
+next turn. The process stays usable. Close stdin to end it (exit 0).
 
-These wire examples come from Anthropic's SDK source and were exercised locally.
-For advanced control or permission replies, consult that source rather than
-guessing envelopes.
+## Permission prompts
+
+The default `--permission-prompts host` sends prompts to the host only when
+`--permission-prompt-tool stdio` is also passed (the SDK does this). Without
+it, a prompt-requiring call is denied with a `system` `permission_denied`
+event. `--permission-prompts none` denies the same way even with `stdio`.
+With `stdio`, the CLI emits and waits for a reply:
+
+```jsonl
+{"type":"control_request","request_id":"REQ","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{...},"tool_use_id":"...","permission_suggestions":[...]}}
+{"type":"control_response","response":{"subtype":"success","request_id":"REQ","response":{"behavior":"allow","updatedInput":{...}}}}
+{"type":"control_response","response":{"subtype":"success","request_id":"REQ","response":{"behavior":"deny","message":"Reason"}}}
+```
+
+For allow, echo `input` as `updatedInput` to run it unchanged. A deny
+`message` becomes the model's tool error; the turn still ends `success`.
 
 ## Existing sessions and terminal control
 
 ```sh
 claude -p --resume SESSION_ID 'Follow-up'
-claude --bg 'TASK'
-claude logs BACKGROUND_ID
-claude attach BACKGROUND_ID
-claude stop BACKGROUND_ID
+claude --bg 'TASK' --model haiku
+claude agents --json
+claude logs|attach|stop|rm BACKGROUND_ID
 ```
 
-`--bg` returns a managed session ID; `claude agents --json` lists them. It cannot
-be combined with `-p`. `logs` reads recent terminal output; `attach` needs a
-terminal. `stop` keeps conversation history. Use the background ID returned by
-that interface, rather than assuming every identifier has the same meaning.
+`--bg` prints a short ID and returns; it cannot be combined with `-p` and
+fails in an untrusted directory. `agents --json` (`--all` adds exited) lists
+`id`, `sessionId`, `kind`, `state` (`working`, `blocked`, `done`, `stopped`).
+`logs` prints raw terminal output with ANSI escapes. `attach` needs a PTY and
+accepts typed prompts. `stop` keeps the conversation; `-p --resume` takes the
+`sessionId`, not the short ID. `rm` deletes. `--bg --exec 'CMD'` runs a
+PTY-backed shell job under the same commands.
 
 In the TUI, messages can be queued while Claude works; `Ctrl+Enter` sends queued
 input immediately. `Esc`/`Ctrl+C` interrupt active work. These are terminal
@@ -111,15 +133,14 @@ gestures, not bytes to send to a JSON pipe. Prefer explicit session IDs over
 ## Pitfalls and deeper reference
 
 - Startup hooks/MCP servers and background tasks can delay output or exit.
-  `--include-hook-events` helps identify hook activity. A print-mode process may
-  remain alive after a result while background work continues.
-- Headless permission denial may produce an answer that explains inability to
-  act. Inspect the result rather than assuming exit 0 means the requested action
-  happened.
-- A nested Claude launch may encounter the `CLAUDECODE` nesting guard. Prefer
-  native Claude subagents when that fits; for an intentional independent CLI
-  session, unset that marker only in the child's environment, retaining actual
-  sandbox and permission settings.
+  `SessionStart` hook events appear in stream-json regardless;
+  `--include-hook-events` adds the rest (for example `Stop`).
+- Any permission denial yields a `success` result and exit 0 that explains the
+  inability to act. Check `result.permission_denials`.
+- Launching `claude` from inside Claude Code with `CLAUDECODE` set worked for
+  both `-p` and the TUI. If a nesting guard appears, unset that marker only in
+  the child (`env -u CLAUDECODE claude -p ...`), retaining actual sandbox and
+  permission settings.
 
 Discovery: `claude --help`, `claude agents --help`, `claude auth status --text`.
 
