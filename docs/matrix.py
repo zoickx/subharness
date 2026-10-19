@@ -52,7 +52,7 @@ CALLEE = {
 CALLER = {
     "Claude Code": {
         "launch": (OK, ""),
-        "stdin": (WARN, "Bash has no writable stdin; hold the pipe with a small helper or tmux"),
+        "stdin": (WARN, "Bash has no writable stdin; run the child behind a FIFO held open, recipe in the callee reference"),
         "http": (OK, ""),
     },
     "Codex CLI": {
@@ -62,7 +62,7 @@ CALLER = {
     },
     "OpenCode": {
         "launch": (OK, ""),
-        "stdin": (WARN, "shell has no stdin channel; hold the pipe with a small helper or tmux"),
+        "stdin": (WARN, "shell has no stdin channel; a FIFO held open should work, untested from shell"),
         "http": (OK, ""),
     },
     "agy": {

@@ -62,3 +62,33 @@ afterwards), owned processes killed. Workspace-trust prompts in both Claude Code
 and Antigravity block some interactive checks in a temp directory; accepting
 them would edit `~/.claude.json` or `~/.gemini/antigravity-cli/settings.json`,
 so those checks were not forced.
+
+## Third pass: stdin channels without a helper (2026-10-19)
+
+Checked which standard tools can hold a stdin JSON protocol open from a
+caller's shell tool, so the references could drop the "small helper" wording.
+
+- Claude Code 2.1.303 (`haiku`) behind a FIFO started as Claude Code's own
+  `Bash` background task (`exec 3<>in; claude ... <&3`): permission allow and
+  deny, interrupt, and a follow-up turn, each written from a later `Bash`
+  call. Without the `3<>` holder the process exited 0 after the first turn.
+- Claude Code in a `tmux` 3.7c pane: `-p --input-format stream-json` with a
+  terminal stdin exits with `Input must be provided either through stdin or as
+  a prompt argument when using --print`; with a prompt argument it ran one
+  turn and exited without reading stdin. With `cat | claude ...` and `stty raw
+  -echo icrnl`, permission allow and deny, interrupt, a correction after the
+  interrupt, and a 6000-byte message all worked with a clean `pipe-pane` log.
+- Codex 0.163.0 `app-server --listen stdio://`: accepted a terminal stdin
+  directly in a raw-mode `tmux` pane (initialize, `thread/start`, command
+  approval round-trip on `gpt-6-luna`); behind a FIFO, initialize and
+  `thread/start` responded without a model turn.
+- Terminal line discipline, measured with `cat` in a pane: canonical mode
+  truncated a 6000-byte line to 4095 bytes and echoed input; raw mode passed
+  it intact with no CR.
+- The interrupted Claude Code `result` varied: `error_during_execution` with
+  `aborted_streaming`, `success` with `aborted_streaming`, and `success` with
+  `stop_hook_prevented`. The reference no longer promises specific fields.
+
+Untested: the FIFO from OpenCode's `shell` and agy's `run_command`; large
+payloads through `tmux load-buffer`/`paste-buffer`; TUI control through `tmux`
+(agy's trust menu still blocks temp directories).
