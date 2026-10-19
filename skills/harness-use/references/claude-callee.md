@@ -61,6 +61,9 @@ nested transcripts into the parent context.
 
 ## Keep a process open, interrupt, and follow up
 
+Advanced path. It relies on protocol details observed on one release and
+can break with an update; prefer launch flags and resume when they suffice.
+
 The CLI speaks the Agent SDK's JSONL protocol without requiring an SDK install:
 
 ```sh

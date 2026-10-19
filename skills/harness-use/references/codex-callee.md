@@ -79,6 +79,9 @@ sessions.
 
 ## Live steering through App Server
 
+Advanced path. It relies on protocol details observed on one release and
+can break with an update; prefer launch flags and resume when they suffice.
+
 The bundled server is a child process with a newline-delimited JSON-RPC interface;
 no SDK or external service is needed:
 

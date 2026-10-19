@@ -49,6 +49,9 @@ a session you did not launch, use the server's event stream below.
 
 ## Server: live events, steering, interruption
 
+Advanced path. It relies on protocol details observed on one release and
+can break with an update; prefer launch flags and resume when they suffice.
+
 ```sh
 OPENCODE_PASSWORD=SECRET opencode serve --hostname 127.0.0.1 --port 4096
 ```

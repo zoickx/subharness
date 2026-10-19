@@ -51,6 +51,9 @@ tool payloads and reasoning. `--output-format json` waits for completion.
 
 ## Multiple turns in one process
 
+Advanced path. It relies on protocol details observed on one release and
+can break with an update; prefer launch flags and resume when they suffice.
+
 ```sh
 agy --input-format stream-json --output-format stream-json --model SLUG
 ```
