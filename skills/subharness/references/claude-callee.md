@@ -26,8 +26,11 @@ This emits JSONL on stdout, with diagnostics on stderr. Plain `-p` returns text;
 | Persistence | `--session-id UUID`, `--resume ID`, `--continue`, `--fork-session`; `--no-session-persistence` prevents later resume |
 
 `dontAsk` denies unapproved tools; `acceptEdits` accepts edits; `plan` restricts
-execution. Pick permissions for the intended task. `--tools` availability and
-tool approval are separate controls.
+execution. In `-p` the default mode has nobody to ask, so a file write or a
+shell command that needs approval is denied and the turn still ends `success`;
+pass `--permission-mode acceptEdits`, `--allowedTools`, or
+`--dangerously-skip-permissions` for a task that writes. `--tools`
+availability and tool approval are separate controls.
 
 List options (`--tools`, `--allowedTools`, `--disallowedTools`, `--add-dir`,
 `--mcp-config`) are variadic and swallow a following prompt (`-p` errors, `--bg`
