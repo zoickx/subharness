@@ -122,3 +122,32 @@ only by `send-keys` and read with `capture-pane`.
 
 Untested: permission options 2 and 3, which persist permissions; `M-m` into a
 single long tool call; `ctrl+b`, `/tasks`, `ctrl+o`; the trust menu itself.
+
+## Scenario tests: first smoke run (2026-10-19)
+
+`tests/run.py` (see `tests/README.md`) ran headless with cheap models on
+both sides: `haiku`, `gpt-6-luna` at medium effort, `opencode-go/gpt-6-luna`,
+`gemini-3.8-flash-low`. Ten cells, each one sample.
+
+| Scenario | Caller -> callee | Result |
+| --- | --- | --- |
+| resume | Claude Code -> Claude Code, Codex; Codex, OpenCode, agy -> Claude Code | pass |
+| launch | Claude Code -> OpenCode | pass |
+| watch | Claude Code -> Claude Code | pass |
+| permissions | Claude Code -> Claude Code | pass on the second run |
+
+Two first-run failures changed the repo:
+
+- permissions: the caller launched the child with `--no-session-persistence`
+  and still reported a session id, so there was no record to check. The
+  prompts now ask for a session id "so that I can come back to it later".
+- resume, Codex -> Claude Code: the caller launched `claude -p` with no
+  permission flag and the child could not write `note.txt`. The Claude Code
+  callee reference now says the headless default denies writes and names the
+  flags that permit them.
+
+Pinning the session stores also showed that headless agy lists denials in
+`result.denied_actions`, corrected in the agy callee reference.
+
+Not run yet: the full matrix (96 cells), and the steer and interrupt
+scenarios on any pair.
