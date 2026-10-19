@@ -21,15 +21,15 @@ capabilities in a fixed order:
 `W` watch live progress, `S` steer mid-turn, `I` interrupt, `R` resume a saved
 session, `P` answer the child's permission prompts.
 
-Uppercase: direct with the caller's own tools, verified live. Lowercase: works
+**Bold**: direct with the caller's own tools, verified live. Regular: works
 with a caveat, listed below. `-`: not available.
 
 | Caller \ Callee | Claude Code | Codex CLI | OpenCode | agy |
 | --- | --- | --- | --- | --- |
-| Claude Code | `W s i R p` | `W s i R p` | `W S I R P` | `W - i R -` |
-| Codex CLI | `w S I R P` | `w S I R P` | `w s i R p` | `w - i R -` |
-| OpenCode | `W s i R p` | `W s i R p` | `W S I R P` | `W - i R -` |
-| agy | `W s i R p` | `W s i R p` | `W S I R P` | `W - i R -` |
+| Claude Code | **W** S I **R** P | **W** S I **R** P | **W** **S** **I** **R** **P** | **W** - I **R** - |
+| Codex CLI | W **S** **I** **R** **P** | W **S** **I** **R** **P** | W S I **R** P | W - I **R** - |
+| OpenCode | **W** S I **R** P | **W** S I **R** P | **W** **S** **I** **R** **P** | **W** - I **R** - |
+| agy | **W** S I **R** P | **W** S I **R** P | **W** **S** **I** **R** **P** | **W** - I **R** - |
 
 Caveats:
 
