@@ -60,6 +60,9 @@ untested or blocked feature should be labeled, not promoted to a guarantee.
 - Record date, tested version/model, checks, and remaining gaps in
   `docs/verification.md`. Do not commit raw transcripts, auth data, session IDs,
   temporary helper scripts, or copied manuals.
+- If a capability or caveat changed, update the data blocks in `docs/matrix.py`
+  and run `uv run --no-project python -I docs/matrix.py` to regenerate the
+  README matrix.
 - Check relative links, frontmatter, example syntax/flags, and source links.
   Use an available skill validator if useful; do not add dependencies just for
   Markdown checks. For a substantial protocol change, a fresh agent trying the
