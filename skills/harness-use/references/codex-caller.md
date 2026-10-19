@@ -4,18 +4,29 @@ Use the shell/process tool exposed in your current Codex session. Tool names
 and persistence differ across CLI and hosted surfaces; the loaded schema is the
 contract.
 
-Where `exec_command` and `write_stdin` are available:
+When code mode is active, the top-level tool is `exec`: it runs a
+JavaScript cell that calls nested tools such as `tools.exec_command` and
+`tools.write_stdin`. A cell that outlives its yield returns `Script running with
+cell ID N`; poll it with the top-level `wait` tool (`cell_id`, `yield_time_ms`,
+`max_tokens`). This comes from recorded IDE sessions; a live CLI `exec` caller
+run is untested.
 
-- Launch with a short `yield_time_ms` to receive a `session_id` while the process
-  continues. Yielding is not an execution timeout.
-- Poll that same ID with empty `chars`, using a bounded output budget. Send text
-  with `chars` only when the tool supports writable stdin for that session.
+Where `exec_command` and `write_stdin` are available, directly or inside a cell:
+
+- `exec_command` takes `cmd`, plus optional `workdir`, `yield_time_ms`, and
+  `max_output_tokens`. A short `yield_time_ms` returns a `session_id` while the
+  process continues. Yielding is not an execution timeout. The `session_id`
+  stays valid in later cells.
+- Poll that same ID with `write_stdin` and empty `chars`, using a bounded
+  `max_output_tokens`. Send text with `chars` only when the tool supports
+  writable stdin for that session.
 - `tty: true` requests terminal behavior for a TUI. Some hosts require it to keep
   stdin writable. PTY echo and control sequences can contaminate a JSON stream;
   use a pipe-owning temporary process when clean bidirectional JSON is needed.
 - A Ctrl-C byte has terminal semantics only with an appropriate PTY. In a plain
   pipe it is just input. Prefer the child's documented interrupt protocol, or a
-  signal to the specific process you launched.
+  signal to the specific process you launched. Killing only a shell wrapper can
+  leave its children running; signal the process group.
 
 If the host exposes only a blocking shell command, output files and separately
 addressable processes provide observation between calls. A bare shell `&` does
