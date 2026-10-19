@@ -3,10 +3,47 @@
 Markdown skills for using another AI harness like a subagent, consultant, peer,
 or interactive assistant. We call that external agent a **subharness**.
 
-Supports Claude Code, Codex CLI, OpenCode, and Antigravity CLI (`agy`) on Linux.
-Focus: launch options, cheap live progress, steering, interruption, and resume.
-No runtime wrapper, dependencies, prescribed delegation roles, or mandatory
-oversight workflow.
+## Why
+
+Existing interop tooling tends to be heavy and opaque: hidden hangs, wasted
+tokens, no live view of what the other agent is doing, no way to steer it. This
+repo is the opposite. It is Markdown only, with no wrapper, daemon, or
+dependency. Each reference documents the launch flags, event streams, control
+protocols, and pitfalls a harness already has, as observed on current stable
+releases. The agent decides how to use them, the same way a human operator
+would. Linux only.
+
+## Matrix
+
+Rows are the calling harness, columns the called one. Each cell lists five
+capabilities in a fixed order:
+
+`W` watch live progress, `S` steer mid-turn, `I` interrupt, `R` resume a saved
+session, `P` answer the child's permission prompts.
+
+Uppercase: direct with the caller's own tools, verified live. Lowercase: works
+with a caveat, listed below. `-`: not available.
+
+| Caller \ Callee | Claude Code | Codex CLI | OpenCode | agy |
+| --- | --- | --- | --- | --- |
+| Claude Code | `W s i R p` | `W s i R p` | `W S I R P` | `W - i R -` |
+| Codex CLI | `w S I R P` | `w S I R P` | `w s i R p` | `w - i R -` |
+| OpenCode | `W s i R p` | `W s i R p` | `W S I R P` | `W - i R -` |
+| agy | `W s i R p` | `W s i R p` | `W S I R P` | `W - i R -` |
+
+Caveats:
+
+- Claude Code and Codex are controlled over a stdin JSON protocol. Claude Code
+  and OpenCode callers have no writable stdin, so they need a small helper or
+  `tmux` to hold the pipe. The agy caller can write lines, but driving a JSON
+  protocol that way is untested.
+- Codex's sandbox has no network, so any child harness fails until network is
+  granted or the child runs outside the sandbox.
+- agy has no mid-turn steering or permission replies in headless mode;
+  interrupt means killing the process or a timeout, and the result still says
+  `SUCCESS`.
+- Targeted messages back from the child are a prompt convention in every cell:
+  ask for a marker line or a status file and let a watcher forward matches.
 
 ## Use
 
