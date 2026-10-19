@@ -55,24 +55,26 @@ OPENCODE_PASSWORD=SECRET opencode serve --hostname 127.0.0.1 --port 4096
 
 A manually started server adopts `OPENCODE_PASSWORD` (legacy
 `OPENCODE_SERVER_PASSWORD`); otherwise it generates one and prints it on
-stdout. Everything under `/api` requires HTTP Basic auth with user `opencode`
-and that password; `/doc` and `/v2/openapi.json` are open. Clients launched with
-`--server` read the same variable. The background service keeps its own
-password (`opencode service status`, `opencode service set password`).
+stdout. `/api/...` and the route spec `/openapi.json` require HTTP Basic auth
+with user `opencode` and that password; `/doc` and other paths serve the web UI.
+Clients launched with `--server` read the same variable. The background service
+keeps its own password (`opencode service status`, `opencode service set password`).
+JSON responses wrap the payload as `{"data":...}`; errors carry `_tag` and `message`.
 
-`GET /api/event` (`Accept: text/event-stream`) streams every event on the server.
-Each `data:` line is `{"id":"evt_...","type":"...","data":{...}}`; filter on
-`data.sessionID` and `type`. Observed vocabulary for one run:
-`session.execution.started|succeeded|interrupted`,
-`session.step.started|ended|failed`,
-`session.tool.called|progress|success|failed` (`shell.created` for shell calls),
-`session.text.started|delta|ended`, `session.inbox.enqueued|delivered`, and
-`session.usage.updated`. Skip `session.reasoning.*` and `session.tool.input.*`.
-The stream is volatile: a slow consumer is disconnected and misses events.
-`GET /api/session/SESSION_ID/message` returns the authoritative messages;
-`GET /api/experimental/session/SESSION_ID/log?after=SEQ&follow=true` is the
-durable replay-then-follow log. `GET /api/session/active` lists executions this
-server owns.
+`GET /api/event` (`Accept: text/event-stream`) streams every event on the server
+as `data:` lines (no SSE `id:`/`event:`) and `: heartbeat` comments. Each payload
+is `{"id":"evt_...","type":"...","data":{...}}`; filter on `data.sessionID` and
+`type`. Observed: `session.execution.started|succeeded|interrupted`,
+`session.step.started|ended|failed`, `session.tool.called|progress|success|failed`,
+`session.text.started|delta|ended`, `session.inbox.enqueued|delivered`,
+`session.synthetic`, `session.retry.scheduled`, `session.usage.updated`, and
+`permission.asked|replied`. `shell.created|exited` lack `data.sessionID`; match
+`metadata.shellID` from `session.tool.progress`. Skip `session.reasoning.*` and
+`session.tool.input.*`. The stream is volatile: a slow consumer is disconnected
+and misses events. `GET /api/session/SESSION_ID/message` returns stored messages
+newest first; `GET /api/session/active` lists executions this server owns. The
+documented replay log `/api/experimental/session/SESSION_ID/log?after=SEQ&follow=true`
+returned only `{"type":"log.synced","seq":N}` here, with no replayed or live events.
 
 Steer a running session by posting more input:
 
@@ -85,29 +87,50 @@ Content-Type: application/json
 
 The response is the stored user message; `GET /api/session/SESSION_ID/inbox`
 shows it until `session.inbox.delivered`. `steer` (the default) is delivered at
-the next step boundary, after the running tool call returns; `queue` waits for
-idle. `resume:false` records input without waking execution. `PATCH` and
-`DELETE` on `/inbox/INBOX_ID` change delivery or cancel an undelivered item. A
-steer sent during a 25-second shell call was delivered when that call ended, and
-the final reply followed it.
+the next step boundary, after the running tool call returns. `queue` is held
+until the turn would otherwise end, then runs as another turn in the same
+execution; an attached `run` prints it too. `resume:false` records input without
+waking execution. `PATCH`/`DELETE` on `/inbox/INBOX_ID` change or cancel an item.
 
 ```http
 POST /api/session/SESSION_ID/interrupt
 ```
 
-Returns `{"interrupted":true}` when execution was active, `false` when idle.
+Returns bare `{"interrupted":true}` when execution was active, `false` when idle.
 Events: `session.tool.failed`, `session.step.failed`, then
-`session.execution.interrupted`; an attached `run` client exits 1 with an `error`
-line whose `error.type` is `aborted`. `?resume=true` also lets pending steering
-input run. The session stays
-usable: `opencode run --session SESSION_ID` continued one after interruption.
-Interruption is process-local; only the server owning the execution can stop it.
+`session.execution.interrupted` (`data.reason` `user`); an attached `run` exits 1
+with an `error` line whose `error.type` is `aborted`. `?resume=true` also lets
+pending steering input run (untested). `opencode run --session SESSION_ID`
+continued an interrupted session. Only the server owning an execution can stop it.
 
-A pending permission or question looks like silence on the stream.
-`GET /api/session/SESSION_ID/permission` lists requests; reply with
-`POST /api/session/SESSION_ID/permission/REQUEST_ID/reply` and
-`{"decision":"once"}`, `always`, or `reject`. Forms are under `/form`.
-`opencode api --server URL GET /api/session` wraps the same routes.
+## Permissions
+
+Project rules go in `opencode.jsonc`; the last matching rule wins:
+`"permissions":[{"action":"shell","resource":"*","effect":"ask"}]`.
+
+`run` cannot answer a prompt. On `ask` it rejects at once (stderr
+`permission requested: shell (CMD); auto-rejecting`), the model sees a
+`permission.rejected` tool error, and the run usually exits 0 with an
+explanation. `--auto` makes the client answer `once`; `deny` rules still apply.
+To answer prompts yourself, drive the session over HTTP with no `run` client:
+`POST /api/session` with `{"location":{"directory":"/abs/cwd"},"model":
+{"providerID":"opencode","id":"MODEL"}}`, then `POST .../prompt` with `{"text":"TASK"}`.
+
+`permission.asked` carries `data.id` (`per_...`), `action`, `resources`, and
+`save` (what `always` would store). `GET /api/session/SESSION_ID/permission`
+lists pending requests. `POST /api/session/SESSION_ID/permission/REQUEST_ID/reply`
+returns 204:
+
+- `{"decision":"once"}` or `always`: the tool runs.
+- `{"decision":"reject"}`: the tool fails as `aborted`; the execution ends
+  `interrupted` with reason `shutdown`.
+- `{"decision":"reject","message":"TEXT"}`: the model gets TEXT and continues.
+
+An unanswered request stays pending with no further events; `interrupt` clears
+it. Questions use `/api/session/SESSION_ID/form/FORM_ID/reply` (untested).
+`opencode api --server URL GET /api/session` (or an operation ID such as
+`session.active`) calls the same routes; it exits 1 on a missing or rejected
+password and on an HTTP error status.
 
 ## Existing sessions and terminal control
 
@@ -125,16 +148,18 @@ sessions share a project. `export --sanitize` redacts transcript and file data.
 ## Pitfalls and deeper reference
 
 - V1 recipes still rank highly: `run --attach`, `/event` without `/api`,
-  `/session/:id/prompt_async`, and the tools `bash`/`task`. V2 uses `--server`,
-  `/api/...` routes, and `shell`/`subagent`.
-- Unauthenticated `/api` requests get 401 `UnauthorizedError`, and a `run`
-  client without the variable exits at once with `requires a password; set
+  `/session/:id/prompt_async`, `permission` config, and tools `bash`/`task`.
+  V2 uses `--server`, `/api/...`, `permissions`, and `shell`/`subagent`.
+- Unauthenticated `/api` requests get 401 `UnauthorizedError`; a `run` or `api`
+  client without the variable exits 1 with `requires a password; set
   OPENCODE_PASSWORD`. Localhost is not open by default.
+- `run` exits when the session first goes idle. A later wake-up, such as a
+  background shell completion (`session.synthetic`), runs on the server without
+  the client. With `--standalone`, background shells die with the client.
 - Text in `--format json` arrives per completed part; a quiet stream during a
-  long tool call is normal. An interrupted run exits nonzero; a run that was
-  denied a permission may still exit 0 with an explanatory reply.
-- The session, model, and log routes are labeled experimental; confirm a route
-  on the running server's `/doc` when something is missing.
+  long tool call is normal. An `error` line may be followed by a provider retry
+  and a normal reply. The session and log routes are experimental; check the
+  running server's `/openapi.json` when a route is missing.
 
 Discovery: `opencode --help`, `opencode run --help`, `opencode serve --help`,
 `opencode api --help`, `opencode models`, `opencode service status`.
@@ -142,6 +167,7 @@ Discovery: `opencode --help`, `opencode run --help`, `opencode serve --help`,
 - [CLI commands](https://dev.opencode.ai/v2/docs/cli/commands/)
 - [Server, service, and passwords](https://dev.opencode.ai/v2/docs/cli/web/)
 - [HTTP API](https://dev.opencode.ai/v2/docs/api/)
+- [Permissions](https://dev.opencode.ai/v2/docs/permissions/)
 - [Session contract: inbox, steer, interrupt](https://github.com/anomalyco/opencode/blob/dev/specs/v2/session.md)
 - [V1 to V2 changes](https://dev.opencode.ai/v2/docs/migrate-v1/)
 - [Agent-readable documentation index](https://dev.opencode.ai/v2/llms.txt)
