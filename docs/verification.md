@@ -151,3 +151,47 @@ Pinning the session stores also showed that headless agy lists denials in
 
 Not run yet: the full matrix (96 cells), and the steer and interrupt
 scenarios on any pair.
+
+## Scenario tests: full matrix (2026-10-19)
+
+The six single-capability scenarios became two bundles (`basic`: launch,
+watch, resume; `live`: permissions, steer, interrupt, follow-up) and every
+caller and callee pair ran headless with the cheap models above. 27 of 32
+cells pass; failed cells were rerun once. Rows are callers.
+
+```
+basic     claude  codex  opencode  agy
+claude    pass    pass   pass      pass
+codex     pass    pass   pass      pass
+opencode  pass    pass   FAIL      pass
+agy       pass    pass   pass      pass
+
+live      claude  codex  opencode  agy
+claude    pass    pass   pass      cleanup
+codex     pass    pass   pass      pass
+opencode  pass    pass   pass      permissions, cleanup
+agy       report  followup, permissions, report  pass  pass
+```
+
+- OpenCode -> OpenCode basic: the caller backgrounded the child and its own
+  headless `run` exited at the first idle, which killed the child. That is
+  the documented limitation of `run`; an interactive OpenCode caller gets
+  the completion turn. Manual mode is the reference for this cell.
+- Claude Code -> agy live: every capability passed through the tmux recipe;
+  one process stayed in the work dir after the caller ended the TUI.
+- OpenCode -> agy live: steer and interrupt passed; both commands ran, so
+  the caller did not use the TUI permission prompt.
+- agy -> Claude Code live: every capability passed; the caller exited 1
+  before stating the session id.
+- agy -> Codex live: steer and interrupt passed on the second run; the
+  approval and the follow-up did not, two samples.
+
+Reference changes the matrix produced: Claude Code and agy launch sections
+now say that headless default permissions deny writing tools, and the
+OpenCode callee reference says the project directory comes from `PWD`
+(a `subprocess` launch with `cwd=` had put a caller in the repo).
+
+Side effects: each headless run leaves records in its harness's own
+session store, and every agy TUI callee in a new work dir adds a
+`trustedWorkspaces` entry when the caller accepts the trust menu; five such
+entries were added by this matrix and reported for removal.
