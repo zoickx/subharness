@@ -95,6 +95,11 @@ manual research and smoke tests. It is a development tool, not part of the
 installable skill. Ask an agent working in this repo to "refresh subharness for
 Claude Code", or to refresh all four.
 
+[Scenario tests](tests/README.md) run six capability scenarios against any
+caller and callee pair, by hand or headless, and judge the result from files
+and the callee's own session log. A failing cell is an improvement target for
+that pair's references.
+
 We target current stable releases. Version/date evidence belongs in
 [verification notes](docs/verification.md), not runtime version gates. Tests
 use small tasks and inexpensive available models. Documentation and actual
