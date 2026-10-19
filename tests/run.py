@@ -12,6 +12,7 @@ clean    kill leftover processes and delete the work dir
 import argparse
 import json
 import os
+import random
 import shutil
 import signal
 import subprocess
@@ -42,6 +43,11 @@ def save(st):
     state_path(st["id"]).write_text(json.dumps(st, indent=1))
 
 
+def word():
+    """A pronounceable six-letter word, new for every run."""
+    return "".join(random.choice("BDFGKLMNPRSTVZ" if i % 2 == 0 else "AEIOU") for i in range(6))
+
+
 def procs_in(root):
     """PIDs whose cwd is under root (the caller's and callee's leftovers)."""
     out = []
@@ -62,9 +68,11 @@ def prepare(caller, callee, scenario, callee_model=None, quiet=False):
     child.mkdir(parents=True)
     shutil.copytree(HERE.parent / "skills" / "subharness", work / HARNESSES[caller].skill_dir / "subharness")
     c = HARNESSES[callee]
-    prompt = SCENARIOS[scenario].prompt.format(callee=c.name, model=callee_model or c.model, child=child, work=work)
+    words = {"password": word(), "code": word()}
+    prompt = SCENARIOS[scenario].prompt.format(callee=c.name, model=callee_model or c.model, child=child, work=work,
+                                               **words)
     st = dict(id=run_id, caller=caller, callee=callee, scenario=scenario, work=str(work), child=str(child),
-              since=time.time(), prompt=prompt)
+              since=time.time(), words=words, prompt=prompt)
     save(st)
     if not quiet:
         print(f"run id:   {run_id}\nwork dir: {work}\n\nStart {HARNESSES[caller].name} interactively in the "
@@ -91,11 +99,12 @@ def launch(st, caller_model=None, timeout=1200):
 
 
 def check(st):
-    ctx = Ctx(work=st["work"], child=st["child"], since=st["since"], sessions=HARNESSES[st["callee"]].sessions,
-              caller_text=st.get("caller_text"))
+    ctx = Ctx(work=st["work"], child=st["child"], since=st["since"], words=st["words"],
+              sessions=HARNESSES[st["callee"]].sessions, caller_text=st.get("caller_text"))
     SCENARIOS[st["scenario"]].check(ctx)
     if st.get("headless"):
         left = procs_in(st["work"])
+        ctx.cap = "cleanup"
         ctx.add("no leftover processes in the work dir", not left, " ".join(map(str, left[:8])))
     st["checks"] = [c.__dict__ for c in ctx.checks]
     st["passed"] = all(c.ok for c in ctx.checks)
@@ -116,17 +125,18 @@ def clean(st):
 
 
 def grid(scenarios=None):
+    """Latest result per cell: 'pass', or the capabilities with a failed check."""
     latest = {}
     for p in sorted(RUNS.glob("*/state.json")):
         st = json.loads(p.read_text())
-        if "passed" in st:
-            latest[(st["scenario"], st["caller"], st["callee"])] = st["passed"]
+        if "checks" in st:
+            failed = sorted({c["name"].split(":")[0] for c in st["checks"] if not c["ok"]})
+            latest[(st["scenario"], st["caller"], st["callee"])] = " ".join("-" + f for f in failed) or "pass"
     keys = list(HARNESSES)
     for s in scenarios or SCENARIOS:
-        print(f"\n{s:12}" + "".join(f"{k:>10}" for k in keys) + "   (rows: caller, columns: callee)")
+        print(f"\n{s:10}" + "".join(f"{k:>18}" for k in keys) + "   (rows: caller, columns: callee)")
         for a in keys:
-            cells = [latest.get((s, a, b)) for b in keys]
-            print(f"{a:12}" + "".join(f"{('PASS' if v else 'FAIL') if v is not None else '.':>10}" for v in cells))
+            print(f"{a:10}" + "".join(f"{latest.get((s, a, b), '.'):>18}" for b in keys))
 
 
 def main():

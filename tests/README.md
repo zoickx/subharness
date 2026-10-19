@@ -1,19 +1,19 @@
 # Scenario tests
 
-Six scenarios, one per capability, run against any caller and callee pair.
-A scenario is a prompt for the caller plus a check. The prompt names the
-callee, its model, and the task; it never states a pass criterion. The check
-reads files in the work dir and the callee's own session log, so neither
-agent's self-report counts.
+Two scenarios, one per path of the skill, run against any caller and callee
+pair. A scenario is a numbered prompt for the caller plus checks. The prompt
+names the callee, its model, and the tasks; it never states a pass criterion.
+The checks read files in the work dir and the callee's own session log, so
+neither agent's self-report counts. Each check is tagged with the capability
+it judges, and the grid names the failed capabilities per cell.
 
-| Scenario | The caller must |
-| --- | --- |
-| `launch` | start the callee in the background and work while it runs |
-| `watch` | read the callee's output while it runs |
-| `steer` | deliver a message into the callee's running turn |
-| `interrupt` | stop the callee mid-task, then continue the same session |
-| `resume` | resume a finished callee session |
-| `permissions` | approve one callee command and refuse another |
+| Scenario | Capabilities | The caller must |
+| --- | --- | --- |
+| `basic` | launch, watch, resume | start the callee in the background, work while it runs, read its output, then resume the finished session |
+| `live` | permissions, steer, interrupt, followup | keep one channel open: approve one command and refuse another, deliver a message mid-turn, stop a running command, then continue the session |
+
+Callee tasks are one or two shell commands with exact file names and
+contents. The password and the code word are random per run.
 
 ## Isolation
 
