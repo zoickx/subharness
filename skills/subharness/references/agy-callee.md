@@ -139,9 +139,9 @@ channel to an arbitrary already-running headless child. Untested.
 ## Pitfalls and deeper reference
 
 - Headless tools needing approval are soft-denied. The tool step still goes
-  `ACTIVE` then `DONE` with no denial field; the result is `SUCCESS`, exit 0,
-  often with an empty response, and the explanation is on stderr. Inspect all
-  three. `permissions.allow` rules in settings or a terminal approval path can
+  `ACTIVE` then `DONE`; the result is `SUCCESS`, exit 0, often with an empty
+  response, and lists the denials in `result.denied_actions`; the explanation
+  is on stderr. Inspect all three. `permissions.allow` rules in settings or a terminal approval path can
   support the intended action.
 - `--mode plan` headless tried `write_to_file` for its plan, was denied, and
   returned an empty `SUCCESS`.
