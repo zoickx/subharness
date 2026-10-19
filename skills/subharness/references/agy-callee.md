@@ -23,6 +23,11 @@ agy -p 'TASK' --output-format stream-json --model SLUG --print-timeout 10m < /de
 | Interactive launch | `--prompt-interactive 'TASK'` / `-i 'TASK'`, `--remote-control` |
 | Misc | `--log-file PATH` (default under `~/.gemini/antigravity-cli/log/`), `--disable-slash-commands` |
 
+A headless run denies every tool that needs approval, shell commands and
+file writes included, and still ends `SUCCESS` with the denial only on stderr
+and in `result.denied_actions`; pass `--dangerously-skip-permissions` for a
+task that writes (details under Pitfalls).
+
 Use a model slug returned by `agy models`; model, effort, and mode choices vary
 by account. An unavailable `--mode` (seen with `auto`) prints a stderr warning and
 continues in the default mode. The cached CLI login is reused. An unauthenticated
