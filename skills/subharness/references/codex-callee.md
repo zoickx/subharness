@@ -101,7 +101,7 @@ with `stty raw -echo icrnl` set first works directly; without raw mode the
 terminal echoes input into the log and truncates lines at 4095 bytes.
 
 ```jsonl
-{"id":1,"method":"initialize","params":{"clientInfo":{"name":"harness_use","title":"Harness use","version":"1"}}}
+{"id":1,"method":"initialize","params":{"clientInfo":{"name":"subharness","title":"Subharness","version":"1"}}}
 {"method":"initialized","params":{}}
 {"id":2,"method":"thread/start","params":{"cwd":"/work/project","model":"MODEL","approvalPolicy":"on-request","sandbox":"read-only"}}
 {"id":3,"method":"turn/start","params":{"threadId":"THREAD_ID","input":[{"type":"text","text":"TASK"}]}}

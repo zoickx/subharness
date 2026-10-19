@@ -1,6 +1,6 @@
 # Verification notes
 
-Maintenance evidence for `skills/harness-use`. Dates, versions, and models are
+Maintenance evidence for `skills/subharness`. Dates, versions, and models are
 what was on this Linux machine at the time; references target current stable
 behavior and do not gate on these numbers.
 

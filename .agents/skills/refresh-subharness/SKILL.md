@@ -1,11 +1,15 @@
 ---
-name: refresh-harness-use
-description: Maintain this repository's harness-use skill. Manually refresh selected harness references from current first-party documentation, local CLI help, and small live tests. Repository development only; not a user-facing runtime skill.
+name: refresh-subharness
+description: >-
+  Maintain this repository's subharness skill. Manually refresh selected
+  harness references from current first-party documentation, local CLI help,
+  and small live tests. Repository development only; not a user-facing runtime
+  skill.
 ---
 
-# Refresh harness use
+# Refresh subharness
 
-Work on the requested harnesses in `skills/harness-use/`. This is a manual
+Work on the requested harnesses in `skills/subharness/`. This is a manual
 maintenance procedure. There is no watcher, release monitor, or CI requirement.
 
 ## Research only what changed

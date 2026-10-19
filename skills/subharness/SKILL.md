@@ -1,12 +1,12 @@
 ---
-name: harness-use
+name: subharness
 description: >-
   Launch and interact with another installed AI harness on Linux: Claude Code,
   Codex CLI, OpenCode, or Antigravity CLI (agy). Covers CLI options, live progress,
   steering, background processes, and session resume for external agents.
 ---
 
-# Harness use
+# Subharness
 
 A **subharness** is another AI agent running through its own harness. Use it for
 whatever role the task needs. These references describe access and capabilities;
