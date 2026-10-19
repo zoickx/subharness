@@ -98,7 +98,8 @@ POST /api/session/SESSION_ID/interrupt
 Returns `{"interrupted":true}` when execution was active, `false` when idle.
 Events: `session.tool.failed`, `session.step.failed`, then
 `session.execution.interrupted`; an attached `run` client exits 1 with an `error`
-line. `?resume=true` also lets pending steering input run. The session stays
+line whose `error.type` is `aborted`. `?resume=true` also lets pending steering
+input run. The session stays
 usable: `opencode run --session SESSION_ID` continued one after interruption.
 Interruption is process-local; only the server owning the execution can stop it.
 
