@@ -23,7 +23,8 @@ and write lines to the FIFO from later `Bash` calls; verified with Claude Code
 as the child for permission replies, interrupt, and a follow-up. For terminal
 interaction, a TUI or a handover to a human, a `tmux` session on a private
 socket (`tmux -L NAME`) supplies the PTY: `send-keys -l` writes, `pipe-pane`
-logs, `kill-session` ends it; `logs` alone does not provide input.
+logs a plain stream, `capture-pane -S` reads a TUI, `kill-session` ends it;
+`logs` alone does not provide input.
 
 A native subagent can own a noisy harness investigation and return only the
 result. If it owns a long-running command, keep its lifecycle in mind:

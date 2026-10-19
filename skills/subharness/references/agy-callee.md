@@ -75,12 +75,51 @@ and invalid JSON lines exit 1. CLI slash commands such as `/model` cannot be sen
 
 ## Interrupt, steer, and resume
 
-For active terminal intervention, launch a TUI with `agy` or `agy -i 'TASK'`
-through a PTY. Docs bind `Ctrl+C`/`Esc` to stopping the stream and `Ctrl+D` to
-exit; these are keystrokes, not JSON stdin messages (untested). In an untrusted
-cwd the TUI first shows a workspace-trust menu, even with
+For active terminal intervention, run the TUI (`agy` or `agy -i 'TASK'`) in
+a PTY such as a `tmux` pane. Keys are keystrokes, not JSON stdin messages. In
+an untrusted cwd it first shows a workspace-trust menu, even with
 `--dangerously-skip-permissions`; trusted paths are kept in `trustedWorkspaces`
 in `~/.gemini/antigravity-cli/settings.json`. Headless `-p` skips that menu.
+
+Advanced path. Observed through `tmux send-keys` on one release:
+
+- The `>` input line appears in about 5 s. A first-start notice overlay ends
+  in `esc to dismiss`; `Escape` dismisses it. The footer starts with
+  `? for shortcuts` when idle and `esc to cancel` during a turn.
+- Submit with `send-keys -l -- 'TEXT'`, then `Enter` as a separate key.
+- `Escape` or `C-c` during a turn stopped the stream within a second and
+  printed `Interrupted`. Partial output stays; the next prompt worked.
+- Docs say `C-c`/`Esc` also clear the prompt; not observed. At an idle
+  prompt, even with a draft, `C-c` shows `press ctrl+c again to exit` and a
+  second `C-c` exits. `C-u` clears a draft. `Up` on an empty prompt recalls
+  the previous input.
+- `Enter` during a turn queues the message (`alt+m to send immediately`); it
+  runs as the next turn. `M-m` injects a queued message at the next step
+  boundary: after a tool step it redirected the turn; during a single text
+  stream it waited for the stream to end.
+- A long shell command can move to a background task (footer `1 task(s)`).
+  The turn then ends, queued input runs, and task completion starts another
+  turn.
+
+Shell commands in the default mode show `Run this command?` with options
+`1. Yes, run command`, `2.` allow in this conversation, `3.` allow and
+persist to `settings.json`, `4. No, cancel`. A digit selects at once;
+`Up`/`Down` then `Enter` also work; `Enter` alone takes option 1. Denial
+(`4` or `Escape`) ends the turn as `Interrupted`. After `Escape` the tool line
+reads `Ran (...)` without `failed`. File-viewing tools did not prompt.
+
+The TUI does not use the alternate screen. `capture-pane -p -S -N` returns a
+clean transcript: each line once, no spinners, within tmux `history-limit`.
+Tool output is collapsed. The visible screen adds a spinner line, a `Tip:`
+line, rules around the input, and the footer. The `Interrupted` note is
+dropped after the next turn. `pipe-pane` output is a stream of redraw frames
+that repeat content, not a readable log.
+
+Quit with `/quit` (completes to `/exit`) and `Enter`, or `C-d` twice on an
+empty prompt; both exit 0. On exit the TUI prints `agy --conversation=UUID`;
+it showed the ID nowhere else, so keep the pane (`remain-on-exit on`) to read
+it. `agy --conversation=UUID` reopened the TUI with the transcript and the
+prior context. Headless follow-up:
 
 ```sh
 agy -p 'Follow-up' --conversation CONVERSATION_ID --output-format stream-json < /dev/null
