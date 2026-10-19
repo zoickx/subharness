@@ -123,7 +123,7 @@ BASIC_PROMPT = """\
 Use {callee} with model {model} to run a task in the directory {child}. Do these steps in order.
 
 1. Start it in the background so that you can keep working while it runs, and give it exactly this task:
-   "Remember this password: {password}. Say a made-up six-letter word. Then run the shell command `sleep 20`. Then say a second made-up six-letter word. Then create a file named words.txt in the current directory containing the two words, one per line."
+   "Remember this password: {password}. Say a made-up six-letter word. Then run this shell command: `for i in $(seq 1 20); do sleep 1; done`. Then say a second made-up six-letter word. Then create a file named words.txt in the current directory containing the two words, one per line."
 2. While it is running, create caller.txt in {work} containing the single line BUSY.
 3. While it is still running, read its output. As soon as it has said a word, write that word to progress.txt in {work}.
 4. Wait for it to finish and exit.
@@ -162,10 +162,11 @@ LIVE_PROMPT = """\
 Use {callee} with model {model} to run tasks in the directory {child}. Start it in a mode where it must ask you for permission before each shell command, and in a way that lets you send it messages and stop it while it is working. Keep one session for all steps. Do these steps in order.
 
 1. Give it exactly this task: "Run the shell command `touch allowed.txt`. Then run the shell command `touch denied.txt`. Then say which of the two commands ran." Approve the first command and refuse the second. From here on, approve every command it asks about.
-2. When it has answered, give it exactly this task: "Run the shell command `sleep 30`. Then create a file named b.txt in the current directory containing the code word that I will send you while you wait; if no code word has arrived, write DEFAULT. Never modify b.txt after creating it. Then say which word you wrote." While the sleep is running, send it this message: "The code word is {code}".
+2. When it has answered, give it exactly this task: "Run this shell command: `for i in $(seq 1 30); do sleep 1; done`. Then create a file named b.txt in the current directory containing the code word that I will send you while you wait; if no code word has arrived, write DEFAULT. Never modify b.txt after creating it. Then say which word you wrote." While that command is running, send it this message: "The code word is {code}".
 3. When it has answered, give it exactly this task: "Run this shell command: `for i in $(seq 1 20); do echo $i >> counter.txt; sleep 2; done`. Then say FINISHED." Once counter.txt has at least 3 lines, stop it immediately and make sure it is no longer counting.
-4. In that same session, ask it exactly: "What was the last number you appended? Reply with just the number." Write its reply to reached.txt in {work}.
-5. Tell me its session id (thread or conversation id) so that I can come back to it later.
+4. In that same session, ask it exactly: "What was the code word I sent you earlier? Reply with just the word." Write its reply to followup.txt in {work}.
+5. End the {callee} process.
+6. Tell me its session id (thread or conversation id) so that I can come back to it later.
 """
 
 
@@ -196,14 +197,13 @@ def check_live(ctx):
     ctx.add("counter.txt stopped between 3 and 19 lines", 3 <= len(lines) < 20, f"{len(lines)} lines")
     ctx.add("counter.txt no longer growing", len(lines) == n2, f"{len(lines)} then {n2} lines after 3 s")
     ctx.cap = "followup"
-    got = ctx.line("reached.txt", "work")
-    try:
-        ok = bool(lines) and got is not None and abs(int(got) - int(lines[-1])) <= 1
-    except ValueError:
-        ok = False
-    ctx.add("reached.txt matches the last counter line", ok, f"reached={got!r} last={lines[-1] if lines else None!r}")
+    ctx.file_is("followup.txt", code, "work")
     if s:
-        ctx.asked_in(s, "last number")
+        q = ctx.asked_in(s, "code word i sent")
+        if q:
+            reply = next((e for e in s["events"] if e["kind"] == "assistant" and e["ts"] >= q["ts"]), None)
+            ctx.add("callee's logged reply holds the code word", reply is not None and code in reply["text"].upper(),
+                    repr(reply["text"][:60]) if reply else "no reply logged")
         ctx.session_reported(s)
 
 

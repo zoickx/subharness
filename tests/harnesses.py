@@ -53,6 +53,10 @@ def claude_sessions(cwd_dir, since):
             continue
         events = []
         for r in recs:
+            if r.get("type") == "attachment" and r.get("attachment", {}).get("type") == "queued_command":
+                # a message delivered into a running turn is logged here, not as a user line
+                events.append({"ts": iso(r["timestamp"]), "kind": "user", "text": r["attachment"].get("prompt", "")})
+                continue
             if r.get("type") not in ("user", "assistant") or r.get("isSidechain") or r.get("isMeta"):
                 continue
             content = r["message"]["content"]

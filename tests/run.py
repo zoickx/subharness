@@ -103,6 +103,7 @@ def check(st):
               sessions=HARNESSES[st["callee"]].sessions, caller_text=st.get("caller_text"))
     SCENARIOS[st["scenario"]].check(ctx)
     if st.get("headless"):
+        time.sleep(2)  # let processes the caller just ended finish exiting
         left = procs_in(st["work"])
         ctx.cap = "cleanup"
         ctx.add("no leftover processes in the work dir", not left, " ".join(map(str, left[:8])))
