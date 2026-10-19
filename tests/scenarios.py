@@ -79,35 +79,41 @@ class Ctx:
             self.add("session store readable", False, repr(ex)[:200])
             return []
 
-    def task_session(self, phrase):
-        """The callee session whose user input contains the phrase."""
+    def task_sessions(self, phrase):
+        """The callee sessions whose user input contains the task phrase (a
+        caller may retry the launch, so there can be several)."""
         self.cap = "session"
-        found = [s for s in self.all_sessions()
-                 if any(e["kind"] == "user" and phrase.lower() in e["text"].lower() for e in s["events"])]
+        found = [s for s in self.all_sessions() if self.has_user(s, phrase)]
         self.add(f"callee session with the task ({phrase[:30]})", bool(found),
                  f"{len(found)} match(es) of {len(self.all_sessions())} session(s) in child")
-        return found[0] if found else None
+        return found
+
+    @staticmethod
+    def has_user(session, phrase, skip_first=False):
+        us = [e for e in session["events"] if e["kind"] == "user"][1 if skip_first else 0:]
+        return next((u for u in us if phrase.lower() in u["text"].lower()), None)
 
     def users(self, session):
         return [e for e in session["events"] if e["kind"] == "user"]
 
-    def asked_in(self, session, phrase):
-        """The follow-up with the phrase is in this session and in no other."""
-        us = self.users(session)
-        q = [u for u in us[1:] if phrase in u["text"].lower()]
-        self.add(f"'{phrase}' asked in the same callee session", bool(q), f"{len(us)} user message(s)")
-        others = [x for x in self.all_sessions() if x["session_id"] != session["session_id"]
-                  and any(e["kind"] == "user" and phrase in e["text"].lower() for e in x["events"])]
-        self.add("not asked in a fresh callee session instead", not others, f"{len(others)} other session(s)")
-        return q[0] if q else None
+    def asked_in(self, tasks, phrase):
+        """The follow-up with the phrase is in a session that holds the task,
+        and in no session without it. Returns the follow-up event."""
+        asked = [(s, self.has_user(s, phrase, skip_first=True)) for s in self.all_sessions()]
+        asked = [(s, q) for s, q in asked if q]
+        same = [(s, q) for s, q in asked if s["session_id"] in {t["session_id"] for t in tasks}]
+        self.add(f"'{phrase}' asked in the same callee session", bool(same), f"{len(asked)} session(s) asked")
+        self.add("not asked in a fresh callee session instead", len(same) == len(asked),
+                 f"{len(asked) - len(same)} fresh session(s)")
+        return same[0][1] if same else None
 
-    def session_reported(self, session):
+    def session_reported(self, tasks):
         self.cap = "report"
         if self.caller_text is None:
             self.add("caller reported the session id", True, "manual mode: not checked")
         else:
-            self.add("caller reported the session id", session["session_id"] in self.caller_text,
-                     session["session_id"])
+            ids = [t["session_id"] for t in tasks]
+            self.add("caller reported the session id", any(i in self.caller_text for i in ids), " ".join(ids))
 
 
 @dataclass
@@ -134,7 +140,7 @@ Use {callee} with model {model} to run a task in the directory {child}. Do these
 
 
 def check_basic(ctx):
-    s = ctx.task_session("Remember this password")
+    tasks = ctx.task_sessions("Remember this password")
     ctx.cap = "launch"
     ctx.file_is("caller.txt", "BUSY", "work")
     ctx.before("caller.txt", "words.txt")
@@ -146,11 +152,11 @@ def check_basic(ctx):
     ctx.before("progress.txt", "words.txt")
     ctx.cap = "resume"
     ctx.file_is("recall.txt", ctx.words["password"], "work")
-    if s:
-        q = ctx.asked_in(s, "password i gave")
+    if tasks:
+        q = ctx.asked_in(tasks, "password i gave")
         if q:
             ctx.add("question does not repeat the password", ctx.words["password"] not in q["text"].upper())
-        ctx.session_reported(s)
+        ctx.session_reported(tasks)
 
 
 # --- live: permissions, steer, interrupt, follow-up (one open channel) ------
@@ -168,21 +174,20 @@ Use {callee} with model {model} to run tasks in the directory {child}. Start it 
 
 
 def check_live(ctx):
-    s = ctx.task_session("touch allowed.txt")
+    tasks = ctx.task_sessions("touch allowed.txt")
     ctx.cap = "permissions"
     ctx.add("allowed.txt exists", os.path.exists(ctx.path("allowed.txt")))
     ctx.add("denied.txt absent", not os.path.exists(ctx.path("denied.txt")))
-    if s:
-        cmds = [e for e in s["events"] if e["kind"] == "command"]
-        if cmds:
-            ctx.add("callee ran touch allowed.txt", any("allowed.txt" in c["text"] for c in cmds),
-                    f"{len(cmds)} command(s) logged")
+    cmds = [e for t in tasks for e in t["events"] if e["kind"] == "command"]
+    if cmds:
+        ctx.add("callee ran touch allowed.txt", any("allowed.txt" in c["text"] for c in cmds),
+                f"{len(cmds)} command(s) logged")
     ctx.cap = "steer"
     code = ctx.words["code"]
     ctx.file_is("b.txt", code)
-    if s:
-        sent = [u for u in ctx.users(s) if code in u["text"].upper()]
-        ctx.add("code word message in the same callee session", bool(sent), f"{len(ctx.users(s))} user message(s)")
+    if tasks:
+        sent = [u for t in tasks for u in ctx.users(t) if code in u["text"].upper()]
+        ctx.add("code word message in the same callee session", bool(sent), f"{len(tasks)} task session(s)")
         bm = ctx.mtime("b.txt")
         if sent and bm:
             ctx.add("code word arrived before b.txt was written", sent[0]["ts"] < bm,
@@ -195,13 +200,13 @@ def check_live(ctx):
     ctx.add("counter.txt no longer growing", len(lines) == n2, f"{len(lines)} then {n2} lines after 3 s")
     ctx.cap = "followup"
     ctx.file_is("followup.txt", code, "work")
-    if s:
-        q = ctx.asked_in(s, "code word i sent")
+    if tasks:
+        q = ctx.asked_in(tasks, "code word i sent")
         if q:
-            reply = next((e for e in s["events"] if e["kind"] == "assistant" and e["ts"] >= q["ts"]), None)
+            reply = next((e for t in tasks for e in t["events"] if e["kind"] == "assistant" and e["ts"] >= q["ts"]), None)
             ctx.add("callee's logged reply holds the code word", reply is not None and code in reply["text"].upper(),
                     repr(reply["text"][:60]) if reply else "no reply logged")
-        ctx.session_reported(s)
+        ctx.session_reported(tasks)
 
 
 SCENARIOS = {
