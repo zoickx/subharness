@@ -170,21 +170,31 @@ live      claude  codex  opencode  agy
 claude    pass    pass   pass      cleanup
 codex     pass    pass   pass      pass
 opencode  pass    pass   pass      permissions, cleanup
-agy       report  followup, permissions, report  pass  pass
+agy       (see below)  (see below)  pass  pass
 ```
 
 - OpenCode -> OpenCode basic: the caller backgrounded the child and its own
   headless `run` exited at the first idle, which killed the child. That is
   the documented limitation of `run`; an interactive OpenCode caller gets
   the completion turn. Manual mode is the reference for this cell.
-- Claude Code -> agy live: every capability passed through the tmux recipe;
-  one process stayed in the work dir after the caller ended the TUI.
+- Claude Code -> agy live: every capability passed through the tmux recipe.
+  The "leftover" was the default tmux server, shared with a concurrent cell:
+  `kill-session` left it alive with its cwd in this cell's work dir. The
+  runner now gives each cell its own `TMUX_TMPDIR` and the agy callee
+  reference says to use a private socket and `kill-server`.
 - OpenCode -> agy live: steer and interrupt passed; both commands ran, so
-  the caller did not use the TUI permission prompt.
-- agy -> Claude Code live: every capability passed; the caller exited 1
-  before stating the session id.
-- agy -> Codex live: steer and interrupt passed on the second run; the
-  approval and the follow-up did not, two samples.
+  the caller did not use the TUI permission prompt. One process was left;
+  cause not recovered.
+- agy -> Claude Code live and agy -> Codex live: every sample of the agy
+  caller on 2026-10-19 and the two reruns on 2026-10-20 ended with
+  `error: interrupted`, which is agy's SIGINT exit (verified). On 10-19 the
+  ends coincided with other cells' ends and with my 10-minute tool timeout;
+  on 10-20 nothing external ran, so the signal came from inside the cell.
+  The source was not pinned down. The one agy -> Claude Code sample that
+  ran to the end (10-19) passed everything except steer: the haiku callee
+  folded the b.txt write into the same shell command as the 30-second loop,
+  so the mid-turn message arrived after the write. That is the task wording
+  allowing it, not a harness limit. agy -> Codex has no clean sample.
 
 Reference changes the matrix produced: Claude Code and agy launch sections
 now say that headless default permissions deny writing tools, and the
@@ -195,3 +205,13 @@ Side effects: each headless run leaves records in its harness's own
 session store, and every agy TUI callee in a new work dir adds a
 `trustedWorkspaces` entry when the caller accepts the trust menu; five such
 entries were added by this matrix and reported for removal.
+
+## Scenario tests: transcript review (2026-10-20)
+
+Re-reading the callee session stores behind the matrix produced two
+reference notes: a Claude Code callee absorbs a user line sent during a turn
+into that turn after the current tool call (`queued_command` attachment,
+`absorbed_mid_turn`; seen in two cells), and the agy TUI recipe now uses a
+private tmux socket because concurrent agents on the default socket share one
+server. Two probes of headless agy verified the `error: interrupted` SIGINT
+signature and that its shell commands run in their own session.

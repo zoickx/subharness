@@ -156,6 +156,10 @@ channel to an arbitrary already-running headless child. Untested.
   returned an empty `SUCCESS`.
 - `--print-timeout` expiry also returns `SUCCESS`, exit 0, and a partial
   response. Only stderr says `print timeout after ...; returning partial output`.
+- `status` `ERROR` with `error: interrupted`, an empty `response`, and exit 1
+  is the SIGINT exit (verified by signalling a headless run). The steps so far
+  stay in the conversation store. Shell commands run in their own session, so
+  a signal to a command's process group does not reach `agy` itself.
   Background commands started by the child are terminated on exit.
 - Help says the timeout default is `0` (no limit); the headless page still says
   five minutes. Set it explicitly when a ceiling matters.
