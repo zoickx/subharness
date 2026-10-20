@@ -85,6 +85,10 @@ a PTY such as a `tmux` pane. Keys are keystrokes, not JSON stdin messages. In
 an untrusted cwd it first shows a workspace-trust menu, even with
 `--dangerously-skip-permissions`; trusted paths are kept in `trustedWorkspaces`
 in `~/.gemini/antigravity-cli/settings.json`. Headless `-p` skips that menu.
+Use a private socket (`tmux -L NAME`) and end with `tmux -L NAME kill-server`.
+`kill-session` leaves the server and any other session alive, and on the
+default socket a concurrent agent's sessions share that server and session
+names collide.
 
 Advanced path. Observed through `tmux send-keys` on one release:
 
