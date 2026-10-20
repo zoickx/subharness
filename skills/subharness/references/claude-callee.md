@@ -102,9 +102,12 @@ Keep stdin open and flush each line. Initialize, wait for the matching
 The initialize response is large; read only needed fields. `system`/`init`
 arrives after each user message, not after initialize. `session_id: "default"`
 is the SDK's input label; save the real emitted session ID for later CLI
-resume. Subsequent user lines submit further turns. Do not assume they cancel
-an active tool/model call. For an immediate change of course, interrupt the
-active turn, then send the correction in the same process:
+resume. Subsequent user lines submit further turns. A line sent during a turn
+does not cancel the active tool or model call. The CLI logs it as a
+`queued_command` attachment and injects it into the running turn after that
+call ends (`absorbed_mid_turn`), so the model sees it before its next step.
+For an immediate change of course, interrupt the active turn, then send the
+correction in the same process:
 
 ```jsonl
 {"type":"control_request","request_id":"stop-1","request":{"subtype":"interrupt"}}
